@@ -28,6 +28,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import sys
 from typing import Optional, Tuple
 from vimba import *
+import numpy as np
 
 
 def print_preamble():
@@ -108,7 +109,12 @@ def setup_camera(cam: Camera):
 
 
 def frame_handler(cam: Camera, frame: Frame):
-    print('{} acquired {}'.format(cam, frame), flush=True)
+    import os, psutil
+    process = psutil.Process(os.getpid())
+    #frame.convert_pixel_format(PixelFormat.Mono16)
+    array = np.zeros((frame.get_height(), frame.get_width()), np.uint16)
+    frame.convert_pixel_format(PixelFormat.Mono16, destination_buffer=array.data)
+    print('{} acquired {}, memory usage: {}MB'.format(cam, frame, process.memory_info().rss // 2**20), flush=True)
 
     cam.queue_frame(frame)
 

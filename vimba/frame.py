@@ -758,7 +758,7 @@ class Frame:
 
     @RuntimeTypeCheckEnable()
     def convert_pixel_format(self, target_fmt: PixelFormat,
-                             debayer_mode: Optional[Debayer] = None):
+            debayer_mode: Optional[Debayer] = None, destination_buffer: Optional[memoryview] = None):
         """Convert internal pixel format to given format.
 
         Note: This method allocates a new buffer for internal image data leading to some
@@ -815,7 +815,16 @@ class Frame:
         img_size = int(height * width * c_dst_image.ImageInfo.PixelInfo.BitsPerPixel / 8)
         anc_size = self._frame.ancillarySize
 
-        buf = (ctypes.c_ubyte * (img_size + anc_size))()
+        buffer_type = (ctypes.c_ubyte * (img_size + anc_size))
+        if destination_buffer is not None:
+            if (not destination_buffer.contiguous):
+                raise ValueError('expected a contiguous memoryview')
+            if (destination_buffer.nbytes != img_size):
+                raise ValueError(f'expected buffer of size {img_size}, got buffer of size {destination_buffer.nbytes}')
+            buf = buffer_type.from_buffer(destination_buffer)
+        else:
+            buf = buffer_type()
+        
         c_dst_image.Data = ctypes.cast(buf, ctypes.c_void_p)
 
         # 5) Setup Debayering mode if given.
@@ -828,6 +837,8 @@ class Frame:
         call_vimba_image_transform('VmbImageTransform', byref(c_src_image), byref(c_dst_image),
                                    byref(transform_info), 1)
 
+        if destination_buffer is not None:
+            return
         # 7) Copy ancillary data if existing
         if anc_size:
             src = ctypes.addressof(self._buffer) + self._frame.imageSize
